@@ -1,0 +1,64 @@
+{% extends 'index.html' %}
+
+{% block title %}Reservas{% endblock %}
+
+{% block content %}
+
+
+<div class="flex justify-content-around my-3">
+  <div class="flex align-items-center border-round-2xl border-1 px-2">
+    <p class="text-center pr-1 m-0"><i class="bi bi-fire text-danger"></i> TOP 3 <i class="bi bi-fire text-danger"></i></p>
+    <ol class="border-left-1 m-0">
+      {% for user in top_3_users %}
+      <li>{{ user.username | upper }}: {{ user.rental_count }}</li>
+      {% endfor %}
+    </ol>
+  </div>
+  <div class="flex align-items-center border-round-2xl overflow-auto border-1">
+    <p class="text-center m-0 px-1">AGENDAMENTOS</p>
+    <div class="border-left-1">
+      <p style="background-color: palegreen" class="m-0 p-2 border-bottom-1">HOJE: {{today_rentals}}</p>
+      <p style="background-color: orange" class="m-0 p-2">TOTAL: {{total_rentals}}</p>
+    </div>
+  </div>
+</div>
+
+
+<div class="flex justify-content-between my-2">
+  {% if user.is_authenticated %}
+  <a href="{% url 'core:rental_create' %}" class="btn btn-primary w-full p-2"><i class="bi bi-plus-lg"></i> NOVA RESERVA</a>
+  {% endif %}
+</div>
+
+
+<table class="table table-striped table-hover">
+  <tr>
+    <th>Professor</th>
+    <th>Data</th>
+    <th>Turmo</th>
+    <th>Aula</th>
+    <th>Item</th>
+    <th>Turma</th>
+    <th>***</th>
+  </tr>
+  {% for rental in rentals %}
+  <tr
+    style="background-color: {% if rental.date == today %} palegreen {% elif rental.date == tomorrow %} antiquewhite {% endif %}">
+    <td>{{ rental.client.username | upper }}</td>
+    <td>{{ rental.date | date:'d/m/Y' }}</td>
+    <td>{{ rental.get_period_display }}</td>
+    <td>{{ rental.get_period_time_display }}</td>
+    <td>{{ rental.item.name | upper }}</td>
+    <td>{{ rental.room }}</td>
+    <td>
+      {% if user.is_superuser or rental.client == user %}
+      <a href="{% url 'core:rental_edit' rental.pk %}"><i class="bi-pencil btn btn-success"></i></a>
+      <a href="{% url 'core:rental_delete' rental.pk %}"><i class="bi-trash btn btn-danger"></i></a>
+      {% endif %}
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+
+
+{% endblock %}

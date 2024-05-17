@@ -1,0 +1,86 @@
+{% extends "index.html" %}
+{% block content %}
+<form method="post" action=".">
+  {% csrf_token %}
+
+  {% if form.non_field_errors %}
+  <div class="alert alert-danger">
+    {% for error in form.non_field_errors %}
+    <p class="text-center">{{ error | upper }}</p>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if form.errors %}
+  <div class="alert alert-danger">
+    {% for field in form %}
+    {% if field.errors %}
+    <p class="text-center">{{ field.label | upper }}: {{ field.errors | join:", " }}</p>
+    {% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if user.is_superuser %}
+  <div class="form-group">
+    <label for="id_client">Professor</label>
+    <select class="form-control" id="id_client" name="client">
+      {% for user in form.fields.client.queryset %}
+      <option value="{{ user.pk }}" {% if user.pk == rental.client.pk %} selected {% endif %}>
+        {{ user.username | upper }}
+      </option>
+      {% endfor %}
+    </select>
+  </div>
+  {% else %}
+  <input type="hidden" name="client" value="{{ user.pk }}">
+  {% endif %}
+
+  <div class="form-group">
+    <label for="id_item">Item</label>
+    <select class="form-control" id="id_item" name="item">
+      {% for item in form.fields.item.queryset %}
+      <option value="{{ item.pk }}" {% if item.pk == rental.item.pk %} selected {% endif %}>{{ item.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="form-group">
+    <label for="id_date">Data</label>
+    {% if rental.date %}
+    <input type="date" id="id_date" name="date" class="form-control" value="{{ rental.date | date:'Y-m-d' }}">
+    {% else %}
+    <input type="date" id="id_date" name="date" class="form-control">
+    {% endif %}
+  </div>
+
+  <div class="form-group">
+    <label for="id_period">Turno</label>
+    <select class="form-control" id="id_period" name="period">
+      {% for value, label in form.fields.period.choices %}
+      <option value="{{ value }}" {% if value == rental.period %} selected {% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="form-group">
+    <label for="id_period_time">Aula</label>
+    <select class="form-control" id="id_period_time" name="period_time">
+      {% for value, label in form.fields.period_time.choices %}
+      <option value="{{ value }}" {% if value == rental.period_time %} selected {% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="form-group">
+    <label for="id_room">Sala</label>
+    <input type="text" id="id_room" name="room" class="form-control" placeholder="Digite a sala/turma"
+      value="{{ rental.room }}">
+  </div>
+
+  <div class="flex gap-2">
+    <a href="{% url 'core:rental_list' %}" class="btn btn-warning w-full my-3">VOLTAR</a>
+    <button type="submit" class="btn btn-success w-full my-3">SALVAR</button>
+  </div>
+</form>
+{% endblock %}
