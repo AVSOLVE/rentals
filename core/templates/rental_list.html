@@ -49,7 +49,7 @@
     <td>{{ rental.get_period_display }}</td>
     <td>{{ rental.get_period_time_display }}</td>
     <td>{{ rental.item.name | upper }}</td>
-    <td>{{ rental.room }}</td>
+    <td>{{ rental.room | upper }}</td>
     <td>
       {% if user.is_superuser or rental.client == user %}
       <a href="{% url 'core:rental_edit' rental.pk %}"><i class="bi-pencil btn btn-success"></i></a>

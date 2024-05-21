@@ -2,7 +2,7 @@ from typing import Any
 from django.db.models.query import QuerySet
 from django.shortcuts import get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
-from django.views import generic
+from django.views import View, generic
 from django.urls import reverse_lazy
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.utils import timezone
@@ -10,6 +10,9 @@ from core.form import RentalForm
 from .models import Item, Rental
 from django.contrib.auth.models import User
 from django.db.models import Count
+from django.http import JsonResponse
+from django.utils.decorators import method_decorator
+from django.views.decorators.http import require_GET
 
 
 @login_required
@@ -61,7 +64,6 @@ class RentalListView(generic.ListView):
         context["top_3_users"] = User.objects.annotate(
             rental_count=Count("rental")
         ).order_by("-rental_count")[:3]
-
         return context
 
 
@@ -70,6 +72,11 @@ class RentalCreateView(LoginRequiredMixin, generic.CreateView):
     form_class = RentalForm
     template_name = "rental_form.html"
     success_url = reverse_lazy("core:rental_list")
+
+    def get_initial(self):
+        initial = super().get_initial()
+        # Set initial values if needed
+        return initial
 
     def form_valid(self, form):
         item = form.cleaned_data.get("item")
@@ -99,6 +106,11 @@ class RentalCreateView(LoginRequiredMixin, generic.CreateView):
             rental.client = self.request.user
         rental.save()
         return super().form_valid(form)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["rental"] = self.object or self.model()
+        return context
 
 
 class RentalDeleteView(generic.DeleteView):
@@ -140,3 +152,26 @@ class RentalEditView(LoginRequiredMixin, generic.UpdateView):
         rental.save()
 
         return super().form_valid(form)
+
+class CheckConflictView(View):
+    @method_decorator(require_GET)
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+
+    def get(self, request):
+        item_id = request.GET.get("item")
+        date = request.GET.get("date")
+        period = request.GET.get("period")
+        period_time = request.GET.get("period_time")
+
+        conflict = Rental.objects.filter(
+            item_id=item_id, date=date, period=period, period_time=period_time
+        ).first()
+
+        if conflict:
+            conflict_message = (
+                f"CONFLITO DE AGENDAMENTO: O {conflict.item.name} já foi reservado para {conflict.client.username} neste dia/horário."
+            )
+            return JsonResponse({"conflict": True, "message": conflict_message})
+        else:
+            return JsonResponse({"conflict": False})

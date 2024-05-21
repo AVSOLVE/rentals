@@ -1,10 +1,10 @@
-from django.urls import path, include
+from django.urls import path
 from .views import (
-    ItemListView,
     RentalCreateView,
     RentalDeleteView,
     RentalListView,
     RentalEditView,
+    CheckConflictView
 )
 
 
@@ -14,4 +14,5 @@ urlpatterns = [
     path("rental/create/", RentalCreateView.as_view(), name="rental_create"),
     path("rental/<int:pk>/delete/", RentalDeleteView.as_view(), name="rental_delete"),
     path("rental/<int:pk>/edit/", RentalEditView.as_view(), name="rental_edit"),
+    path('check-conflict/', CheckConflictView.as_view(), name='check_conflict'),
 ]

@@ -1,7 +1,10 @@
 {% extends "index.html" %}
+
 {% block content %}
 <form method="post" action=".">
   {% csrf_token %}
+
+  <div id="conflict-message" class="alert alert-danger" style="display: none;"></div>
 
   {% if form.non_field_errors %}
   <div class="alert alert-danger">
@@ -26,7 +29,7 @@
     <label for="id_client">Professor</label>
     <select class="form-control" id="id_client" name="client">
       {% for user in form.fields.client.queryset %}
-      <option value="{{ user.pk }}" {% if user.pk == rental.client.pk %} selected {% endif %}>
+      <option value="{{ user.pk }}" {% if user.pk == form.initial.client.pk %} selected {% endif %}>
         {{ user.username | upper }}
       </option>
       {% endfor %}
@@ -38,36 +41,32 @@
 
   <div class="form-group">
     <label for="id_item">Item</label>
-    <select class="form-control" id="id_item" name="item">
+    <select class="form-control" id="id_item" name="item" onchange="checkConflict()">
       {% for item in form.fields.item.queryset %}
-      <option value="{{ item.pk }}" {% if item.pk == rental.item.pk %} selected {% endif %}>{{ item.name }}</option>
+      <option value="{{ item.pk }}" {% if item.pk == form.initial.item.pk %} selected {% endif %}>{{ item.name }}</option>
       {% endfor %}
     </select>
   </div>
 
   <div class="form-group">
     <label for="id_date">Data</label>
-    {% if rental.date %}
-    <input type="date" id="id_date" name="date" class="form-control" value="{{ rental.date | date:'Y-m-d' }}">
-    {% else %}
-    <input type="date" id="id_date" name="date" class="form-control">
-    {% endif %}
+    <input type="date" id="id_date" name="date" class="form-control" value="{{ form.initial.date|default:''|date:'Y-m-d' }}" onchange="checkConflict()">
   </div>
 
   <div class="form-group">
     <label for="id_period">Turno</label>
-    <select class="form-control" id="id_period" name="period">
+    <select class="form-control" id="id_period" name="period" onchange="checkConflict()">
       {% for value, label in form.fields.period.choices %}
-      <option value="{{ value }}" {% if value == rental.period %} selected {% endif %}>{{ label }}</option>
+      <option value="{{ value }}" {% if value == form.initial.period %} selected {% endif %}>{{ label }}</option>
       {% endfor %}
     </select>
   </div>
 
   <div class="form-group">
     <label for="id_period_time">Aula</label>
-    <select class="form-control" id="id_period_time" name="period_time">
+    <select class="form-control" id="id_period_time" name="period_time" onchange="checkConflict()">
       {% for value, label in form.fields.period_time.choices %}
-      <option value="{{ value }}" {% if value == rental.period_time %} selected {% endif %}>{{ label }}</option>
+      <option value="{{ value }}" {% if value == form.initial.period_time %} selected {% endif %}>{{ label }}</option>
       {% endfor %}
     </select>
   </div>
@@ -75,7 +74,7 @@
   <div class="form-group">
     <label for="id_room">Sala</label>
     <input type="text" id="id_room" name="room" class="form-control" placeholder="Digite a sala/turma"
-      value="{{ rental.room }}">
+      value="{{ form.initial.room|default:'' }}">
   </div>
 
   <div class="flex gap-2">
@@ -83,4 +82,27 @@
     <button type="submit" class="btn btn-success w-full my-3">SALVAR</button>
   </div>
 </form>
+
+<script>
+function checkConflict() {
+    const item = document.getElementById('id_item').value;
+    const date = document.getElementById('id_date').value;
+    const period = document.getElementById('id_period').value;
+    const period_time = document.getElementById('id_period_time').value;
+
+    if (item && date && period && period_time) {
+        fetch(`/check-conflict/?item=${item}&date=${date}&period=${period}&period_time=${period_time}`)
+            .then(response => response.json())
+            .then(data => {
+                const conflictMessage = document.getElementById('conflict-message');
+                if (data.conflict) {
+                    conflictMessage.style.display = 'block';
+                    conflictMessage.textContent = data.message;
+                } else {
+                    conflictMessage.style.display = 'none';
+                }
+            });
+    }
+}
+</script>
 {% endblock %}
