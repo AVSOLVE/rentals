@@ -4,7 +4,8 @@ from .views import (
     RentalDeleteView,
     RentalListView,
     RentalEditView,
-    CheckConflictView
+    CheckConflictView,
+    CheckQuotaView,
 )
 
 
@@ -14,5 +15,6 @@ urlpatterns = [
     path("rental/create/", RentalCreateView.as_view(), name="rental_create"),
     path("rental/<int:pk>/delete/", RentalDeleteView.as_view(), name="rental_delete"),
     path("rental/<int:pk>/edit/", RentalEditView.as_view(), name="rental_edit"),
-    path('check-conflict/', CheckConflictView.as_view(), name='check_conflict'),
+    path("check-conflict/", CheckConflictView.as_view(), name="check_conflict"),
+    path("check-quota/", CheckQuotaView.as_view(), name="check_quota"),
 ]

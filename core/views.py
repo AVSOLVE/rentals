@@ -13,6 +13,7 @@ from django.db.models import Count
 from django.http import JsonResponse
 from django.utils.decorators import method_decorator
 from django.views.decorators.http import require_GET
+from datetime import timedelta
 
 
 @login_required
@@ -73,12 +74,10 @@ class RentalCreateView(LoginRequiredMixin, generic.CreateView):
     template_name = "rental_form.html"
     success_url = reverse_lazy("core:rental_list")
 
-    def get_initial(self):
-        initial = super().get_initial()
-        # Set initial values if needed
-        return initial
+    WEEKLY_QUOTA = 4
 
     def form_valid(self, form):
+        user = self.request.user
         item = form.cleaned_data.get("item")
         date = form.cleaned_data.get("date")
         period = form.cleaned_data.get("period")
@@ -90,27 +89,31 @@ class RentalCreateView(LoginRequiredMixin, generic.CreateView):
 
         if conflicting_rental:
             conflict_message = (
-                f"Conflito: "
-                f"{conflicting_rental.item.name} para {conflicting_rental.client.username} "
-                f"no dia {conflicting_rental.date} ,{conflicting_rental.get_period_display()} "
+                f"Conflito: {conflicting_rental.item.name} para {conflicting_rental.client.username} "
+                f"no dia {conflicting_rental.date}, {conflicting_rental.get_period_display()} "
                 f"na {conflicting_rental.get_period_time_display()} na turma {conflicting_rental.room}."
             )
             form.add_error(None, conflict_message)
             return self.form_invalid(form)
 
+        start_of_week = timezone.now() - timedelta(days=timezone.now().weekday())
+        weekly_rentals = Rental.objects.filter(
+            client=user, date__gte=start_of_week
+        ).count()
+
+        if weekly_rentals >= self.WEEKLY_QUOTA:
+            form.add_error(None, "Você atingiu sua cota semanal de reservas.")
+            return self.form_invalid(form)
+
         rental = form.save(commit=False)
 
-        if self.request.user.is_superuser:
+        if user.is_superuser:
             rental.client = form.cleaned_data.get("client")
         else:
-            rental.client = self.request.user
+            rental.client = user
         rental.save()
         return super().form_valid(form)
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["rental"] = self.object or self.model()
-        return context
 
 
 class RentalDeleteView(generic.DeleteView):
@@ -153,6 +156,7 @@ class RentalEditView(LoginRequiredMixin, generic.UpdateView):
 
         return super().form_valid(form)
 
+
 class CheckConflictView(View):
     @method_decorator(require_GET)
     def dispatch(self, *args, **kwargs):
@@ -169,9 +173,25 @@ class CheckConflictView(View):
         ).first()
 
         if conflict:
-            conflict_message = (
-                f"CONFLITO DE AGENDAMENTO: O {conflict.item.name} já foi reservado para {conflict.client.username} neste dia/horário."
-            )
+            conflict_message = f"CONFLITO DE AGENDAMENTO: O {conflict.item.name} já foi reservado para {conflict.client.username} neste dia/horário."
             return JsonResponse({"conflict": True, "message": conflict_message})
         else:
             return JsonResponse({"conflict": False})
+
+
+class CheckQuotaView(View):
+    @method_decorator(require_GET)
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+
+    def get(self, request):
+        user_id = request.GET.get("user_id")
+        user = User.objects.get(pk=user_id)
+        start_of_week = timezone.now() - timedelta(days=timezone.now().weekday())
+        weekly_rentals = Rental.objects.filter(
+            client=user, date__gte=start_of_week
+        ).count()
+        quota_reached = weekly_rentals >= RentalCreateView.WEEKLY_QUOTA
+
+        return JsonResponse({"quota_reached": quota_reached})
+

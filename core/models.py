@@ -47,3 +47,11 @@ class Rental(TimeStampedModel):
     def __str__(self):
         client_name = self.client.username if self.client else "Unknown"
         return f"{self.item.name} solicitado por {client_name} para o dia {self.date} no período {self.period} na sala {self.room}"
+
+
+class UserProfile(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    weekly_quota = models.IntegerField(default=5)  # Default quota
+
+    def __str__(self):
+        return self.user.username
