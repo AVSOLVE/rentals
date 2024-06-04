@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'core.apps.CoreConfig',
+    'core.management.commands.create_missing_userprofiles',
 ]
 
 MIDDLEWARE = [
