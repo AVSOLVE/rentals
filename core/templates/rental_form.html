@@ -42,14 +42,16 @@
     <label for="id_item">Item</label>
     <select class="form-control" id="id_item" name="item" onchange="checkConflictAndQuota()">
       {% for item in form.fields.item.queryset %}
-      <option value="{{ item.pk }}" {% if item.pk == form.initial.item.pk %} selected {% endif %}>{{ item.name }}</option>
+      <option value="{{ item.pk }}" {% if item.pk == form.initial.item.pk %} selected {% endif %}>{{ item.name }}
+      </option>
       {% endfor %}
     </select>
   </div>
 
   <div class="form-group">
     <label for="id_date">Data</label>
-    <input type="date" id="id_date" name="date" class="form-control" value="{{ form.initial.date|default:''|date:'Y-m-d' }}" onchange="checkConflictAndQuota()">
+    <input type="date" id="id_date" name="date" class="form-control"
+      value="{{ form.initial.date|default:''|date:'Y-m-d' }}" onchange="checkConflictAndQuota()">
   </div>
 
   <div class="form-group">
@@ -83,37 +85,37 @@
 </form>
 
 <script>
-function checkConflictAndQuota() {
+  function checkConflictAndQuota() {
     const item = document.getElementById('id_item').value;
     const date = document.getElementById('id_date').value;
     const period = document.getElementById('id_period').value;
     const period_time = document.getElementById('id_period_time').value;
 
     if (item && date && period && period_time) {
-        fetch(`/check-conflict/?item=${item}&date=${date}&period=${period}&period_time=${period_time}`)
-            .then(response => response.json())
-            .then(data => {
-                const conflictMessage = document.getElementById('conflict-message');
-                if (data.conflict) {
-                    conflictMessage.style.display = 'block';
-                    conflictMessage.textContent = data.message;
-                } else {
-                    conflictMessage.style.display = 'none';
-                }
-            });
+      fetch(`/check-conflict/?item=${item}&date=${date}&period=${period}&period_time=${period_time}`)
+        .then(response => response.json())
+        .then(data => {
+          const conflictMessage = document.getElementById('conflict-message');
+          if (data.conflict) {
+            conflictMessage.style.display = 'block';
+            conflictMessage.textContent = data.message;
+          } else {
+            conflictMessage.style.display = 'none';
+          }
+        });
 
-        fetch(`/check-quota/?user_id={{ user.pk }}`)
-            .then(response => response.json())
-            .then(data => {
-                const quotaMessage = document.getElementById('quota-message');
-                if (data.quota_reached) {
-                    quotaMessage.style.display = 'block';
-                    quotaMessage.textContent = "Você atingiu sua cota semanal de reservas.";
-                } else {
-                    quotaMessage.style.display = 'none';
-                }
-            });
+      fetch(`/check-quota/?user_id={{ user.pk }}&date=${date}`)
+        .then(response => response.json())
+        .then(data => {
+          const quotaMessage = document.getElementById('quota-message');
+          if (data.quota_reached) {
+            quotaMessage.style.display = 'block';
+            quotaMessage.textContent = "Você atingiu sua cota semanal de reservas para a semana da data escolhida.";
+          } else {
+            quotaMessage.style.display = 'none';
+          }
+        });
     }
-}
+  }
 </script>
 {% endblock %}

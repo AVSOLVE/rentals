@@ -83,6 +83,7 @@ class RentalCreateView(LoginRequiredMixin, generic.CreateView):
         period = form.cleaned_data.get("period")
         period_time = form.cleaned_data.get("period_time")
 
+        # Check for conflicting rental on the same date and time
         conflicting_rental = Rental.objects.filter(
             item=item, date=date, period=period, period_time=period_time
         ).first()
@@ -96,25 +97,31 @@ class RentalCreateView(LoginRequiredMixin, generic.CreateView):
             form.add_error(None, conflict_message)
             return self.form_invalid(form)
 
-        start_of_week = timezone.now() - timedelta(days=timezone.now().weekday())
+        # Calculate the start and end of the week for the booking date
+        start_of_week = date - timedelta(days=date.weekday())
+        end_of_week = start_of_week + timedelta(days=6)
+
+        # Count the number of rentals the user has made during the week of the booking date
         weekly_rentals = Rental.objects.filter(
-            client=user, date__gte=start_of_week
+            client=user, date__gte=start_of_week, date__lte=end_of_week
         ).count()
 
         if weekly_rentals >= self.WEEKLY_QUOTA:
-            form.add_error(None, "Você atingiu sua cota semanal de reservas.")
+            form.add_error(None, "Você atingiu sua cota semanal de reservas para a semana da data escolhida.")
             return self.form_invalid(form)
 
+        # Save the rental
         rental = form.save(commit=False)
 
         if user.is_superuser:
             rental.client = form.cleaned_data.get("client")
         else:
             rental.client = user
+
         rental.save()
         return super().form_valid(form)
-
-
+      
+      
 
 class RentalDeleteView(generic.DeleteView):
     model = Rental
@@ -186,11 +193,23 @@ class CheckQuotaView(View):
 
     def get(self, request):
         user_id = request.GET.get("user_id")
+        date_str = request.GET.get("date")
+
+        if not user_id or not date_str:
+            return JsonResponse({"quota_reached": False})
+
         user = User.objects.get(pk=user_id)
-        start_of_week = timezone.now() - timedelta(days=timezone.now().weekday())
+        booking_date = timezone.datetime.strptime(date_str, '%Y-%m-%d').date()
+
+        # Calculate the start and end of the week for the booking date
+        start_of_week = booking_date - timedelta(days=booking_date.weekday())
+        end_of_week = start_of_week + timedelta(days=6)
+
+        # Count the number of rentals the user has made during the week of the booking date
         weekly_rentals = Rental.objects.filter(
-            client=user, date__gte=start_of_week
+            client=user, date__gte=start_of_week, date__lte=end_of_week
         ).count()
+
         quota_reached = weekly_rentals >= RentalCreateView.WEEKLY_QUOTA
 
         return JsonResponse({"quota_reached": quota_reached})
