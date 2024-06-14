@@ -74,7 +74,7 @@ class RentalCreateView(LoginRequiredMixin, generic.CreateView):
     template_name = "rental_form.html"
     success_url = reverse_lazy("core:rental_list")
 
-    WEEKLY_QUOTA = 3
+    WEEKLY_QUOTA = 8
 
     def form_valid(self, form):
         user = self.request.user
