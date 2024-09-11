@@ -67,7 +67,6 @@ class RentalListView(generic.ListView):
         ).order_by("-rental_count")[:3]
         return context
 
-
 class RentalCreateView(LoginRequiredMixin, generic.CreateView):
     model = Rental
     form_class = RentalForm
@@ -83,11 +82,26 @@ class RentalCreateView(LoginRequiredMixin, generic.CreateView):
         period = form.cleaned_data.get("period")
         period_time = form.cleaned_data.get("period_time")
 
-        # Ensure that the rental is not for today
-        today = timezone.now().date()
-        if date <= today:
-            form.add_error(None, "Você só pode fazer reservas para datas futuras (não para hoje).")
-            return self.form_invalid(form)
+        # Superusers bypass the minimum date and weekly quota checks
+        if not user.is_superuser:
+            # Ensure that the rental is not for today or any past date
+            today = timezone.now().date()
+            if date <= today:
+                form.add_error(None, "Você só pode fazer reservas para datas futuras (não para hoje).")
+                return self.form_invalid(form)
+
+            # Calculate the start and end of the week for the booking date
+            start_of_week = date - timedelta(days=date.weekday())
+            end_of_week = start_of_week + timedelta(days=6)
+
+            # Count the number of rentals the user has made during the week of the booking date
+            weekly_rentals = Rental.objects.filter(
+                client=user, date__gte=start_of_week, date__lte=end_of_week
+            ).count()
+
+            if weekly_rentals >= self.WEEKLY_QUOTA:
+                form.add_error(None, "Você atingiu sua cota semanal de reservas para a semana da data escolhida.")
+                return self.form_invalid(form)
 
         # Check for conflicting rental on the same date and time
         conflicting_rental = Rental.objects.filter(
@@ -103,22 +117,10 @@ class RentalCreateView(LoginRequiredMixin, generic.CreateView):
             form.add_error(None, conflict_message)
             return self.form_invalid(form)
 
-        # Calculate the start and end of the week for the booking date
-        start_of_week = date - timedelta(days=date.weekday())
-        end_of_week = start_of_week + timedelta(days=6)
-
-        # Count the number of rentals the user has made during the week of the booking date
-        weekly_rentals = Rental.objects.filter(
-            client=user, date__gte=start_of_week, date__lte=end_of_week
-        ).count()
-
-        if weekly_rentals >= self.WEEKLY_QUOTA:
-            form.add_error(None, "Você atingiu sua cota semanal de reservas para a semana da data escolhida.")
-            return self.form_invalid(form)
-
         # Save the rental
         rental = form.save(commit=False)
 
+        # Superusers can assign the client, regular users can only assign themselves
         if user.is_superuser:
             rental.client = form.cleaned_data.get("client")
         else:
@@ -127,13 +129,10 @@ class RentalCreateView(LoginRequiredMixin, generic.CreateView):
         rental.save()
         return super().form_valid(form)
 
-      
-
 class RentalDeleteView(generic.DeleteView):
     model = Rental
     template_name = "rental_confirm_delete.html"
     success_url = reverse_lazy("core:rental_list")
-
 
 class RentalEditView(LoginRequiredMixin, generic.UpdateView):
     model = Rental
@@ -142,39 +141,43 @@ class RentalEditView(LoginRequiredMixin, generic.UpdateView):
     success_url = reverse_lazy("core:rental_list")
 
     def form_valid(self, form):
+        user = self.request.user
         item = form.cleaned_data.get("item")
         date = form.cleaned_data.get("date")
         period = form.cleaned_data.get("period")
         period_time = form.cleaned_data.get("period_time")
 
-        # Ensure that the rental is not for today
-        today = timezone.now().date()
-        if date <= today:
-            form.add_error(None, "Você só pode alterar reservas para datas futuras (não para hoje).")
-            return self.form_invalid(form)
+        # Superusers bypass the minimum date and conflict checks
+        if not user.is_superuser:
+            # Ensure that the rental is not for today or any past date
+            today = timezone.now().date()
+            if date <= today:
+                form.add_error(None, "Você só pode alterar reservas para datas futuras (não para hoje).")
+                return self.form_invalid(form)
 
-        existing_rental = (
-            Rental.objects.filter(
-                item=item, date=date, period=period, period_time=period_time
+            # Check for existing rental for the same item, date, period, and period time (excluding the current one)
+            existing_rental = (
+                Rental.objects.filter(
+                    item=item, date=date, period=period, period_time=period_time
+                )
+                .exclude(pk=self.object.pk)
+                .exists()
             )
-            .exclude(pk=self.object.pk)
-            .exists()
-        )
 
-        if existing_rental:
-            form.add_error(None, "Esse agendamento já existe.")
-            return self.form_invalid(form)
+            if existing_rental:
+                form.add_error(None, "Esse agendamento já existe.")
+                return self.form_invalid(form)
 
         rental = form.save(commit=False)
 
-        if self.request.user.is_superuser:
+        # Superusers can assign the client, regular users can only assign themselves
+        if user.is_superuser:
             rental.client = form.cleaned_data.get("client")
         else:
-            rental.client = self.request.user
+            rental.client = user
+
         rental.save()
-
         return super().form_valid(form)
-
 
 class CheckConflictView(View):
     @method_decorator(require_GET)
@@ -196,7 +199,6 @@ class CheckConflictView(View):
             return JsonResponse({"conflict": True, "message": conflict_message})
         else:
             return JsonResponse({"conflict": False})
-
 
 class CheckQuotaView(View):
     @method_decorator(require_GET)
@@ -225,4 +227,3 @@ class CheckQuotaView(View):
         quota_reached = weekly_rentals >= RentalCreateView.WEEKLY_QUOTA
 
         return JsonResponse({"quota_reached": quota_reached})
-
