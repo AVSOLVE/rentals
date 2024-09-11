@@ -83,6 +83,12 @@ class RentalCreateView(LoginRequiredMixin, generic.CreateView):
         period = form.cleaned_data.get("period")
         period_time = form.cleaned_data.get("period_time")
 
+        # Ensure that the rental is not for today
+        today = timezone.now().date()
+        if date <= today:
+            form.add_error(None, "Você só pode fazer reservas para datas futuras (não para hoje).")
+            return self.form_invalid(form)
+
         # Check for conflicting rental on the same date and time
         conflicting_rental = Rental.objects.filter(
             item=item, date=date, period=period, period_time=period_time
@@ -120,7 +126,7 @@ class RentalCreateView(LoginRequiredMixin, generic.CreateView):
 
         rental.save()
         return super().form_valid(form)
-      
+
       
 
 class RentalDeleteView(generic.DeleteView):
@@ -140,6 +146,12 @@ class RentalEditView(LoginRequiredMixin, generic.UpdateView):
         date = form.cleaned_data.get("date")
         period = form.cleaned_data.get("period")
         period_time = form.cleaned_data.get("period_time")
+
+        # Ensure that the rental is not for today
+        today = timezone.now().date()
+        if date <= today:
+            form.add_error(None, "Você só pode alterar reservas para datas futuras (não para hoje).")
+            return self.form_invalid(form)
 
         existing_rental = (
             Rental.objects.filter(
