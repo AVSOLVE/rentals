@@ -14,6 +14,13 @@ from django.http import JsonResponse
 from django.utils.decorators import method_decorator
 from django.views.decorators.http import require_GET
 from datetime import timedelta
+from pytz import timezone
+
+# Define Brazil timezone
+BRAZIL_TZ = timezone("America/Sao_Paulo")
+
+# Get the current time in Brazil timezone
+today_brazil = timezone.now().astimezone(BRAZIL_TZ).date()
 
 
 @login_required
@@ -50,8 +57,8 @@ class RentalListView(generic.ListView):
     context_object_name = "rentals"
 
     def get_queryset(self) -> QuerySet[Any]:
-        today = timezone.now().date()
-        return Rental.objects.filter(date__gte=today).order_by(
+        today_brazil = timezone.now().astimezone(BRAZIL_TZ).date()
+        return Rental.objects.filter(date__gte=today_brazil).order_by(
             "date", "period", "period_time"
         )
 
@@ -66,6 +73,7 @@ class RentalListView(generic.ListView):
             rental_count=Count("rental")
         ).order_by("-rental_count")[:3]
         return context
+
 
 class RentalCreateView(LoginRequiredMixin, generic.CreateView):
     model = Rental
@@ -85,9 +93,13 @@ class RentalCreateView(LoginRequiredMixin, generic.CreateView):
         # Superusers bypass the minimum date and weekly quota checks
         if not user.is_superuser:
             # Ensure that the rental is not for today or any past date
-            today = timezone.now().date()
-            if date <= today:
-                form.add_error(None, "Você só pode fazer reservas para datas futuras (não para hoje).")
+            # Ensure that the rental is not for today or any past date
+            today_brazil = timezone.now().astimezone(BRAZIL_TZ).date()
+            if date <= today_brazil:
+                form.add_error(
+                    None,
+                    "Você só pode fazer reservas para datas futuras (não para hoje).",
+                )
                 return self.form_invalid(form)
 
             # Calculate the start and end of the week for the booking date
@@ -100,7 +112,10 @@ class RentalCreateView(LoginRequiredMixin, generic.CreateView):
             ).count()
 
             if weekly_rentals >= self.WEEKLY_QUOTA:
-                form.add_error(None, "Você atingiu sua cota semanal de reservas para a semana da data escolhida.")
+                form.add_error(
+                    None,
+                    "Você atingiu sua cota semanal de reservas para a semana da data escolhida.",
+                )
                 return self.form_invalid(form)
 
         # Check for conflicting rental on the same date and time
@@ -129,10 +144,12 @@ class RentalCreateView(LoginRequiredMixin, generic.CreateView):
         rental.save()
         return super().form_valid(form)
 
+
 class RentalDeleteView(generic.DeleteView):
     model = Rental
     template_name = "rental_confirm_delete.html"
     success_url = reverse_lazy("core:rental_list")
+
 
 class RentalEditView(LoginRequiredMixin, generic.UpdateView):
     model = Rental
@@ -152,7 +169,10 @@ class RentalEditView(LoginRequiredMixin, generic.UpdateView):
             # Ensure that the rental is not for today or any past date
             today = timezone.now().date()
             if date <= today:
-                form.add_error(None, "Você só pode alterar reservas para datas futuras (não para hoje).")
+                form.add_error(
+                    None,
+                    "Você só pode alterar reservas para datas futuras (não para hoje).",
+                )
                 return self.form_invalid(form)
 
             # Check for existing rental for the same item, date, period, and period time (excluding the current one)
@@ -179,6 +199,7 @@ class RentalEditView(LoginRequiredMixin, generic.UpdateView):
         rental.save()
         return super().form_valid(form)
 
+
 class CheckConflictView(View):
     @method_decorator(require_GET)
     def dispatch(self, *args, **kwargs):
@@ -200,6 +221,7 @@ class CheckConflictView(View):
         else:
             return JsonResponse({"conflict": False})
 
+
 class CheckQuotaView(View):
     @method_decorator(require_GET)
     def dispatch(self, *args, **kwargs):
@@ -213,7 +235,7 @@ class CheckQuotaView(View):
             return JsonResponse({"quota_reached": False})
 
         user = User.objects.get(pk=user_id)
-        booking_date = timezone.datetime.strptime(date_str, '%Y-%m-%d').date()
+        booking_date = timezone.datetime.strptime(date_str, "%Y-%m-%d").date()
 
         # Calculate the start and end of the week for the booking date
         start_of_week = booking_date - timedelta(days=booking_date.weekday())
