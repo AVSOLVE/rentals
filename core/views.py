@@ -14,10 +14,10 @@ from django.http import JsonResponse
 from django.utils.decorators import method_decorator
 from django.views.decorators.http import require_GET
 from datetime import timedelta
-from pytz import timezone
+import pytz
 
 # Define Brazil timezone
-BRAZIL_TZ = timezone("America/Sao_Paulo")
+BRAZIL_TZ = pytz.timezone("America/Sao_Paulo")
 
 # Get the current time in Brazil timezone
 today_brazil = timezone.now().astimezone(BRAZIL_TZ).date()

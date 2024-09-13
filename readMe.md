@@ -20,3 +20,8 @@ django.setup()
 from django.contrib.auth.models import User
 user = User.objects.create_user('triade', 'triade@example.com', 'jk2024')
 user.save()
+
+
+source env/bin/activate
+pip install -r requirements.txt
+python manage.py runserver
