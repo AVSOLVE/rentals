@@ -16,11 +16,17 @@ from django.views.decorators.http import require_GET
 from datetime import timedelta
 import pytz
 
-# Define Brazil timezone
 BRAZIL_TZ = pytz.timezone("America/Sao_Paulo")
 
-# Get the current time in Brazil timezone
-today_brazil = timezone.now().astimezone(BRAZIL_TZ).date()
+
+def get_brazil_today():
+    """Returns the current date in Brazil timezone, adjusting for any potential date shifts."""
+    now_brazil = timezone.now().astimezone(BRAZIL_TZ)
+    # Ensure the correct "today" date
+    adjusted_now_brazil = (
+        now_brazil if now_brazil.hour < 23 else now_brazil - timedelta(hours=1)
+    )
+    return adjusted_now_brazil.date()
 
 
 @login_required
@@ -57,16 +63,17 @@ class RentalListView(generic.ListView):
     context_object_name = "rentals"
 
     def get_queryset(self) -> QuerySet[Any]:
-        today_brazil = timezone.now().astimezone(BRAZIL_TZ).date()
+        # Use the helper function to get today's date in Brazil timezone
+        today_brazil = get_brazil_today()
         return Rental.objects.filter(date__gte=today_brazil).order_by(
             "date", "period", "period_time"
         )
 
     def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
         context = super().get_context_data(**kwargs)
-        today = timezone.now().date()
+        today = get_brazil_today()
         context["today"] = today
-        context["tomorrow"] = today + timezone.timedelta(days=1)
+        context["tomorrow"] = today + timedelta(days=1)
         context["today_rentals"] = Rental.objects.filter(date=today).count()
         context["total_rentals"] = Rental.objects.filter(date__gte=today).count()
         context["top_3_users"] = User.objects.annotate(
@@ -92,9 +99,7 @@ class RentalCreateView(LoginRequiredMixin, generic.CreateView):
 
         # Superusers bypass the minimum date and weekly quota checks
         if not user.is_superuser:
-            # Ensure that the rental is not for today or any past date
-            # Ensure that the rental is not for today or any past date
-            today_brazil = timezone.now().astimezone(BRAZIL_TZ).date()
+            today_brazil = get_brazil_today()
             if date <= today_brazil:
                 form.add_error(
                     None,
@@ -167,26 +172,27 @@ class RentalEditView(LoginRequiredMixin, generic.UpdateView):
         # Superusers bypass the minimum date and conflict checks
         if not user.is_superuser:
             # Ensure that the rental is not for today or any past date
-            today = timezone.now().date()
-            if date <= today:
+            today_brazil = get_brazil_today()
+
+            if date <= today_brazil:
                 form.add_error(
                     None,
                     "Você só pode alterar reservas para datas futuras (não para hoje).",
                 )
                 return self.form_invalid(form)
 
-            # Check for existing rental for the same item, date, period, and period time (excluding the current one)
-            existing_rental = (
-                Rental.objects.filter(
-                    item=item, date=date, period=period, period_time=period_time
+                # Check for existing rental for the same item, date, period, and period time (excluding the current one)
+                existing_rental = (
+                    Rental.objects.filter(
+                        item=item, date=date, period=period, period_time=period_time
+                    )
+                    .exclude(pk=self.object.pk)
+                    .exists()
                 )
-                .exclude(pk=self.object.pk)
-                .exists()
-            )
 
-            if existing_rental:
-                form.add_error(None, "Esse agendamento já existe.")
-                return self.form_invalid(form)
+                if existing_rental:
+                    form.add_error(None, "Esse agendamento já existe.")
+                    return self.form_invalid(form)
 
         rental = form.save(commit=False)
 
