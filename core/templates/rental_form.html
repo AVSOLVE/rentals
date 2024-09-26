@@ -118,4 +118,45 @@
     }
   }
 </script>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+
+<script type="text/javascript">
+    $(document).ready(function () {
+        function checkAvailability() {
+            var item = $('#id_item').val();
+            var date = $('#id_date').val();
+            var period = $('#id_period').val();
+            var period_time = $('#id_period_time').val();
+
+            if (item && date && period && period_time) {
+                $.ajax({
+                  url: "{% url 'core:check_availability' %}",
+                    data: {
+                        item: item,
+                        date: date,
+                        period: period,
+                        period_time: period_time
+                    },
+                    dataType: 'json',
+                    success: function (data) {
+                        if (data.available) {
+                            $('#availability_message').text(data.message).css('color', 'green');
+                        } else {
+                            $('#availability_message').text(data.message).css('color', 'red');
+                        }
+                    },
+                    error: function (xhr, status, error) {
+                        $('#availability_message').text("Erro o checar disponibilidade.").css('color', 'red');
+                    }
+                });
+            }
+        }
+
+        // Trigger availability check on field changes
+        $('#id_item, #id_date, #id_period, #id_period_time').change(checkAvailability);
+    });
+</script>
+
+<div id="availability_message"></div>
+
 {% endblock %}

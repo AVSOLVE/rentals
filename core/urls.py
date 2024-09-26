@@ -6,6 +6,7 @@ from .views import (
     RentalEditView,
     CheckConflictView,
     CheckQuotaView,
+    CheckItemAvailabilityView
 )
 
 
@@ -17,4 +18,5 @@ urlpatterns = [
     path("rental/<int:pk>/edit/", RentalEditView.as_view(), name="rental_edit"),
     path("check-conflict/", CheckConflictView.as_view(), name="check_conflict"),
     path("check-quota/", CheckQuotaView.as_view(), name="check_quota"),
+    path('check-availability/', CheckItemAvailabilityView.as_view(), name='check_availability'),
 ]

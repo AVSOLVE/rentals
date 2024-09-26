@@ -7,7 +7,7 @@ from django.urls import reverse_lazy
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.utils import timezone
 from core.form import RentalForm
-from .models import Item, Rental
+from .models import Item, Rental, ExclusionRule
 from django.contrib.auth.models import User
 from django.db.models import Count
 from django.http import JsonResponse
@@ -97,9 +97,22 @@ class RentalCreateView(LoginRequiredMixin, generic.CreateView):
         period = form.cleaned_data.get("period")
         period_time = form.cleaned_data.get("period_time")
 
+        # Check for exclusion rules
+        weekday = date.weekday()  # Monday is 0 and Sunday is 6
+        exclusion_exists = ExclusionRule.objects.filter(
+            item=item, weekday=weekday, period=period, period_time=period_time
+        ).exists()
+
+        if exclusion_exists:
+            form.add_error(
+                None,
+                f"{item.name} is not available for booking on {date.strftime('%A')} during {period} and {period_time}.",
+            )
+            return self.form_invalid(form)
+
         # Superusers bypass the minimum date and weekly quota checks
+        today_brazil = get_brazil_today()
         if not user.is_superuser:
-            today_brazil = get_brazil_today()
             if date <= today_brazil:
                 form.add_error(
                     None,
@@ -139,14 +152,11 @@ class RentalCreateView(LoginRequiredMixin, generic.CreateView):
 
         # Save the rental
         rental = form.save(commit=False)
-
-        # Superusers can assign the client, regular users can only assign themselves
-        if user.is_superuser:
-            rental.client = form.cleaned_data.get("client")
-        else:
-            rental.client = user
-
+        rental.client = (
+            user if not user.is_superuser else form.cleaned_data.get("client")
+        )
         rental.save()
+
         return super().form_valid(form)
 
 
@@ -255,3 +265,34 @@ class CheckQuotaView(View):
         quota_reached = weekly_rentals >= RentalCreateView.WEEKLY_QUOTA
 
         return JsonResponse({"quota_reached": quota_reached})
+
+class CheckItemAvailabilityView(View):
+    @method_decorator(require_GET)
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+
+    def get(self, request):
+        item_id = request.GET.get("item")
+        date_str = request.GET.get("date")
+        period = request.GET.get("period")
+        period_time = request.GET.get("period_time")
+
+        if not item_id or not date_str or not period or not period_time:
+            return JsonResponse({"available": False, "message": "Invalid input."})
+
+        try:
+            # Convert the date string to a Python date object
+            booking_date = timezone.datetime.strptime(date_str, "%Y-%m-%d").date()
+            weekday = booking_date.weekday()  # Get the weekday (0 = Monday, 6 = Sunday)
+            
+            # Check if an exclusion rule exists for the selected criteria
+            exclusion_exists = ExclusionRule.objects.filter(
+                item_id=item_id, weekday=weekday, period=period, period_time=period_time
+            ).exists()
+
+            if exclusion_exists:
+                return JsonResponse({"available": False, "message": "Este item não está disponível no período escolhido."})
+            else:
+                return JsonResponse({"available": True, "message": "Item disponível."})
+        except ValueError:
+            return JsonResponse({"available": False, "message": "Formato de data inválido."})
