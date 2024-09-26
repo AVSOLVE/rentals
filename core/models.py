@@ -70,4 +70,4 @@ class ExclusionRule(models.Model):
     period_time = models.CharField(choices=Rental.CLASSES_CHOICES, max_length=20, null=True, blank=True)
 
     def __str__(self):
-        return f"{self.item.name} is unavailable on {self.get_weekday_display()} for {self.period} during {self.get_period_time_display()}"
+        return f"{self.item.name} não está disponível na {self.get_weekday_display()} no período {self.period} durante a {self.get_period_time_display()}"
